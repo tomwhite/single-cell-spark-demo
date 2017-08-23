@@ -12,7 +12,7 @@ import org.apache.spark.sql.Row
 
 import spark.implicits._
 
-// Create a dataset. Each row is a sample, which consists of quantification values for features.
+// Create a dataset. Each row is a sample, which consists of the sample ID and quantification values for features.
 // The dataset is sparse, so features are referenced by index, and for each index a quantification value
 // is specified. Features that are missing have no corresponding index.
 // See https://spark.apache.org/docs/latest/api/scala/index.html#org.apache.spark.mllib.linalg.SparseVector
