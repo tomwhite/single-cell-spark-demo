@@ -5,6 +5,7 @@ import org.apache.spark.mllib.linalg.Matrix
 import org.apache.spark.mllib.linalg.SparseVector
 import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.distributed.RowMatrix
 
 import org.apache.spark.sql.types._
@@ -18,22 +19,23 @@ import spark.implicits._
 // See https://spark.apache.org/docs/latest/api/scala/index.html#org.apache.spark.mllib.linalg.SparseVector
 val numFeatures = 5
 val data = Array(
-  Vectors.sparse(numFeatures, Array(1, 2, 3), Array(1.0, 0.0, 7.0)), // note explicit (true) zero!
-  Vectors.sparse(numFeatures, Array(0, 2, 3, 4), Array(2.0, 3.0, 4.0, 5.0)),
-  Vectors.sparse(numFeatures, Array(0, 3, 4), Array(4.0, 6.0, 7.0)))
+  ("s1", Vectors.sparse(numFeatures, Array(1, 2, 3), Array(1.0, 0.0, 7.0))), // note explicit (true) zero!
+  ("s2", Vectors.sparse(numFeatures, Array(0, 2, 3, 4), Array(2.0, 3.0, 4.0, 5.0))),
+  ("s3", Vectors.sparse(numFeatures, Array(0, 3, 4), Array(4.0, 6.0, 7.0))))
 
 // Turn the data into an RDD. Using parallelize is OK for datasets that fit in memory,
 // but for larger datasets you would read from HDFS (e.g. from a tsv) and map into an RDD.
-val rows: RDD[Vector] = sc.parallelize(data)
+val rows: RDD[(String, Vector)] = sc.parallelize(data)
 
 // Save the dataset in Parquet format in HDFS. To do this we first need to create a schema, which for this
-// simple model is just the indices and values arrays.
+// simple model is just the id and the indices and values arrays.
 val schema = StructType(
-    StructField("i", ArrayType(IntegerType, false), false) ::
-    StructField("v", ArrayType(DoubleType, false), false) :: Nil)
+    StructField("id", StringType, false) ::
+    StructField("idx", ArrayType(IntegerType, false), false) ::
+    StructField("quant", ArrayType(DoubleType, false), false) :: Nil)
 // Then we map the data to Row objects (note we don't call `vec.toSparse` as it drops true zeros)...
 // (see https://spark.apache.org/docs/latest/api/scala/index.html#org.apache.spark.sql.Row)
-val rowRDD = rows.map(vec => Row(vec.asInstanceOf[SparseVector].indices, vec.asInstanceOf[SparseVector].values))
+val rowRDD = rows.map{ case (id, vec) => Row(id, vec.asInstanceOf[SparseVector].indices, vec.asInstanceOf[SparseVector].values) }
 // ... so we can create a dataframe
 // See https://spark.apache.org/docs/latest/sql-programming-guide.html#programmatically-specifying-the-schema
 // See https://spark.apache.org/docs/latest/sql-programming-guide.html#parquet-files
@@ -46,19 +48,20 @@ df.write.parquet("celldb")
 
 // Load the data back in (this works from a new session too)
 val df = spark.read.parquet("celldb")
-val rows: RDD[Vector] = df.rdd.map(row => Vectors.sparse(numFeatures, row.getAs[Seq[Int]](0).toArray, row.getAs[Seq[Double]](1).toArray))
+val rows: RDD[(String, Vector)] = df.rdd.map(row => (row.getString(0), Vectors.sparse(numFeatures, row.getAs[Seq[Int]](1).toArray, row.getAs[Seq[Double]](2).toArray)))
+rows.collect
 
 // Now let's do some simple queries
 
 // 1. Find the number of measurements per sample
-val numMeasurementsPerSample = rows.map(_.asInstanceOf[SparseVector].numActives)
-numMeasurementsPerSample.collect // note that first row has 3 measurements, even though one is zero
+val numMeasurementsPerSample = rows.mapValues(_.asInstanceOf[SparseVector].numActives)
+numMeasurementsPerSample.collect // note that the first sample (s1) has 3 measurements, even though one is zero
 
 // 2. Calculate the sparsity of the whole dataset
-numMeasurementsPerSample.mean / numFeatures
+numMeasurementsPerSample.values.mean / numFeatures
 
 // 3. Find the number of true zeros (not NA) per sample
-val trueZerosPerSample = rows.map(vec => {
+val trueZerosPerSample = rows.mapValues(vec => {
   var count = 0
   vec.asInstanceOf[SparseVector].foreachActive((i,v) => if (v == 0.0) count += 1)
   count
@@ -66,13 +69,13 @@ val trueZerosPerSample = rows.map(vec => {
 trueZerosPerSample.collect
 
 // 4. Project out features 0 and 2
-val project = rows.map(vec => Vectors.dense(vec(0), vec(2)))
+val project = rows.mapValues(vec => Vectors.dense(vec(0), vec(2)))
 project.collect
 
 // 5. Find the first two principal components
 // See https://spark.apache.org/docs/latest/mllib-dimensionality-reduction.html#principal-component-analysis-pca
 // See https://spark.apache.org/docs/latest/api/scala/index.html#org.apache.spark.mllib.linalg.distributed.RowMatrix
-val mat: RowMatrix = new RowMatrix(rows)
+val mat: RowMatrix = new RowMatrix(rows.values)
 val pc: Matrix = mat.computePrincipalComponents(2)
 val projected: RowMatrix = mat.multiply(pc)
 projected.rows.collect
