@@ -5,7 +5,6 @@ import org.apache.spark.mllib.linalg.Matrix
 import org.apache.spark.mllib.linalg.SparseVector
 import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.distributed.RowMatrix
 
 import org.apache.spark.sql.types._
@@ -75,8 +74,8 @@ project.collect
 // 5. Find the first two principal components
 // See https://spark.apache.org/docs/latest/mllib-dimensionality-reduction.html#principal-component-analysis-pca
 // See https://spark.apache.org/docs/latest/api/scala/index.html#org.apache.spark.mllib.linalg.distributed.RowMatrix
-val mat: RowMatrix = new RowMatrix(rows.values)
+val mat: RowMatrix = new RowMatrix(rows.values) // drop sample IDs to do PCA
 val pc: Matrix = mat.computePrincipalComponents(2)
 val projected: RowMatrix = mat.multiply(pc)
-projected.rows.collect
-
+val projectedWithSampleIds = rows.keys.zip(projected.rows) // add back sample IDs; note can only call zip because projected has same partitioning and #rows per partition
+projectedWithSampleIds.collect
