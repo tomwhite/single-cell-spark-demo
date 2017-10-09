@@ -1,6 +1,7 @@
 # Start a Spark shell (`pyspark2` on CDH) then run the following
 
-from pyspark.ml.linalg import Vectors
+from pyspark.mllib.linalg import Vectors
+from pyspark.mllib.linalg.distributed import RowMatrix
 from pyspark.sql.types import *
 
 # Create a dataset. Each row is a sample, which consists of the sample ID and
@@ -33,8 +34,39 @@ a = rowRDD.collect()
 # See https://spark.apache.org/docs/latest/sql-programming-guide.html#programmatically-specifying-the-schema
 # See https://spark.apache.org/docs/latest/sql-programming-guide.html#parquet-files
 df = spark.createDataFrame(rowRDD, schema)
-df.write.parquet("celldbpy")
+df.write.parquet("celldb")
 
 # It's possible to look at the data in the Parquet file by using parquet-tools as follows:
-# for f in $(hadoop fs -stat '%n' 'celldbpy/part-*'); do parquet-tools cat $(hdfs getconf -confKey fs.defaultFS)/user/$USER/celldbpy/$f; done
+# for f in $(hadoop fs -stat '%n' 'celldb/part-*'); do parquet-tools cat $(hdfs getconf -confKey fs.defaultFS)/user/$USER/celldb/$f; done
 # You'll see that the true zero is stored, while the absence of a measurement is not.
+
+# Load the data back in (this works from a new session too)
+df = spark.read.parquet("celldb")
+rows = df.rdd.map(lambda (id, indices, values): (id, Vectors.sparse(numFeatures, indices, values )))
+rows.collect()
+
+# Now let's do some simple queries
+
+# 1. Find the number of measurements per sample
+numMeasurementsPerSample = rows.mapValues(lambda vec : len(vec.values))
+numMeasurementsPerSample.collect() # note that the first sample (s1) has 3 measurements, even though one is zero
+
+# 2. Calculate the sparsity of the whole dataset
+numMeasurementsPerSample.values().mean() / numFeatures
+
+# 3. Find the number of true zeros (not NA) per sample
+trueZerosPerSample = rows.mapValues(lambda vec : sum(x == 0.0 for x in vec.values))
+trueZerosPerSample.collect()
+
+# 4. Project out features 0 and 2
+project = rows.mapValues(lambda vec: Vectors.dense(vec[0], vec[2]))
+project.collect()
+
+# 5. Find the first two principal components
+# See https://spark.apache.org/docs/latest/mllib-dimensionality-reduction.html#principal-component-analysis-pca
+# See https://spark.apache.org/docs/latest/api/scala/index.html#org.apache.spark.mllib.linalg.distributed.RowMatrix
+mat = RowMatrix(rows.values()) # drop sample IDs to do PCA
+pc = mat.computePrincipalComponents(2)
+projected = mat.multiply(pc)
+projectedWithSampleIds = rows.keys().zip(projected.rows) # add back sample IDs; note can only call zip because projected has same partitioning and #rows per partition
+projectedWithSampleIds.collect()
