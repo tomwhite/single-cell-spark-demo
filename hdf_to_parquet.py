@@ -7,7 +7,7 @@
 # work - we run out of memory.
 
 # The following still runs locally (to read the local file), but doesn't use so much
-# memory.
+# memory. It took me 2.3 hours to run.
 # https://stackoverflow.com/questions/31009951/loading-bigger-than-memory-hdf5-file-in-pyspark
 
 import h5py
