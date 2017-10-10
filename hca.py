@@ -29,7 +29,6 @@ schema = StructType([StructField("id", StringType(), False),
 # Then we map the data to Row objects (tuples in Python). Note use of tolist() to
 # convert from numpy arrays to regular Python lists
 rowRDD = rows.map(lambda (id, vec): (id, vec.indices.tolist(), vec.values.tolist()))
-a = rowRDD.collect()
 # ... so we can create a dataframe
 # See https://spark.apache.org/docs/latest/sql-programming-guide.html#programmatically-specifying-the-schema
 # See https://spark.apache.org/docs/latest/sql-programming-guide.html#parquet-files
