@@ -1,5 +1,14 @@
 # mini PCA
 
+from pyspark.sql import SparkSession
+  
+spark = SparkSession\
+  .builder\
+  .appName("hca")\
+  .getOrCreate()
+sc = spark.sparkContext
+  
+
 from pyspark.mllib.linalg import Vectors
 from pyspark.mllib.linalg import Matrices
 from pyspark.mllib.linalg.distributed import RowMatrix
@@ -28,6 +37,15 @@ svd = centeredMat.computeSVD(2, True)
 svd.V # is the same as PC
 
 s = svd.U.rows.sample(False, 0.5)
+d = s.collect()
 
+
+# plot
+xs = map(lambda v: v[0], d)
+ys = map(lambda v: v[1], d)
+import matplotlib.pyplot as plt
+plt.scatter(xs, ys)
+
+# TODO: how to use U
 x = svd.U.multiply(Matrices.dense(2, 2, (svd.s[0], 0, 0, svd.s[1])))
 x.rows.collect()

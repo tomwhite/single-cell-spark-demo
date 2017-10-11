@@ -1,6 +1,14 @@
 # Start a Spark shell (`pyspark2 --driver-memory 4G --num-executors 16 --executor-cores 1 --executor-memory 4G --driver-memory 8G` on CDH)
 # then run the following
 
+from pyspark.sql import SparkSession
+  
+spark = SparkSession\
+  .builder\
+  .appName("hca")\
+  .getOrCreate()
+sc = spark.sparkContext
+
 from pyspark.mllib.linalg import Vectors
 from pyspark.mllib.linalg.distributed import RowMatrix
 from pyspark.sql.types import *
@@ -36,7 +44,24 @@ mat = RowMatrix(rows.values()) # drop sample IDs to do PCA
 # and will run out of memory. Instead use SVD which is distributed for large matrices.
 # pc = mat.computePrincipalComponents(2)
 
-svd = mat.computeSVD(2, True) # compute U
+# center
+#means = rows.values().reduce(lambda a, b: Vectors.dense(a.toArray()) + Vectors.dense(b.toArray())) / rows.count()
+#centeredRows = rows.values().map(lambda r: r - means)
+#centeredRows.cache()
+#print centeredRows.count() # TODO: very slow, no progress after 15 min (something to do with the map?)
+#centeredMat = RowMatrix(centeredRows)
+
+# then run SVD
+svd = mat.computeSVD(2, True)
+
+s = svd.U.rows.takeSample(False, 1000)
+d = s[:1000]
+
+# plot
+xs = map(lambda v: v[0], d)
+ys = map(lambda v: v[1], d)
+import matplotlib.pyplot as plt
+plt.scatter(xs, ys, marker=".", alpha=0.1)
 
 # svd.U is 10^6 x 2
 # svd.s is 2 x 2 diagnonal
