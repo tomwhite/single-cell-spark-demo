@@ -45,21 +45,21 @@ mat = RowMatrix(rows.values()) # drop sample IDs to do PCA
 # pc = mat.computePrincipalComponents(2)
 
 # center
-#means = rows.values().reduce(lambda a, b: Vectors.dense(a.toArray()) + Vectors.dense(b.toArray())) / rows.count()
-#centeredRows = rows.values().map(lambda r: r - means)
-#centeredRows.cache()
-#print centeredRows.count() # TODO: very slow, no progress after 15 min (something to do with the map?)
-#centeredMat = RowMatrix(centeredRows)
+rowsn = rows.sample(False, 0.001) # downsample to ~1K rows so centering is OK
+means = rowsn.values().reduce(lambda a, b: Vectors.dense(a.toArray()) + Vectors.dense(b.toArray())) / rowsn.count()
+centeredRows = rowsn.values().map(lambda r: r - means)
+centeredRows.cache()
+print centeredRows.count() # TODO: very slow, no progress after 15 min (something to do with the map?)
+centeredMat = RowMatrix(centeredRows)
 
 # then run SVD
-svd = mat.computeSVD(2, True)
+svd = centeredMat.computeSVD(2, True)
 
-s = svd.U.rows.takeSample(False, 1000)
-d = s[:1000]
+u = svd.U.rows.collect()
 
 # plot
-xs = map(lambda v: v[0], d)
-ys = map(lambda v: v[1], d)
+xs = map(lambda v: v[0], u)
+ys = map(lambda v: v[1], u)
 import matplotlib.pyplot as plt
 plt.scatter(xs, ys, marker=".", alpha=0.1)
 
@@ -67,6 +67,21 @@ plt.scatter(xs, ys, marker=".", alpha=0.1)
 # svd.s is 2 x 2 diagnonal
 # svd.V is 28000 x 2
 
-# which is the strongest gene?
-# multiple by (1 0 | 0 0) to get first column of V
-# then do argmax to find which index has the largest value (in size)
+# which gene is the most dominant?
+v = svd.V.toArray()
+import numpy as np
+col1 = v[:, 0]
+col2 = v[:, 1]
+index1 = np.argmax(col1)
+index2 = np.argmax(col2)
+print index1, index2 # 'Malat1' gene
+
+import math
+def get_sorted(col):
+  colabs = np.vectorize(lambda x : math.fabs(x))(col)
+  return np.sort(colabs)[::-1]
+
+# look at the drop off
+col1sorted = get_sorted(col1)
+col2sorted = get_sorted(col2)
+

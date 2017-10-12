@@ -10,6 +10,10 @@
 # memory. It took me 2.3 hours to run.
 # https://stackoverflow.com/questions/31009951/loading-bigger-than-memory-hdf5-file-in-pyspark
 
+'''
+!pip install h5py
+'''
+
 import h5py
 from pyspark.mllib.linalg import Vectors
 from pyspark.sql.types import *
@@ -57,3 +61,11 @@ schema = StructType([StructField("id", StringType(), False),
                      StructField("quant", ArrayType(DoubleType(), False), False)])
 df = spark.createDataFrame(rowRDD, schema)
 df.write.parquet("celldb1m")
+
+if hF is None:
+  hF = h5py.File(h5file_path)
+  
+group = "mm10"
+genes = hF[group + "/genes"]
+gene_names = hF[group + "/gene_names"]
+gene_names[27228] # 'Malat1'
