@@ -1,5 +1,13 @@
 # Start a Spark shell (`pyspark2` on CDH) then run the following
 
+from pyspark.sql import SparkSession
+
+spark = SparkSession \
+    .builder \
+    .appName("hca") \
+    .getOrCreate()
+sc = spark.sparkContext
+
 from pyspark.mllib.linalg import Vectors
 from pyspark.mllib.linalg.distributed import RowMatrix
 from pyspark.sql.types import *
@@ -48,18 +56,22 @@ rows.collect()
 
 # 1. Find the number of measurements per sample
 numMeasurementsPerSample = rows.mapValues(lambda vec : len(vec.values))
-numMeasurementsPerSample.collect() # note that the first sample (s1) has 3 measurements, even though one is zero
+meas = numMeasurementsPerSample.collect() # note that the first sample (s1) has 3 measurements, even though one is zero
+print(meas)
 
 # 2. Calculate the sparsity of the whole dataset
-numMeasurementsPerSample.values().mean() / numFeatures
+sparsity = numMeasurementsPerSample.values().mean() / numFeatures
+print(sparsity)
 
 # 3. Find the number of true zeros (not NA) per sample
 trueZerosPerSample = rows.mapValues(lambda vec : sum(x == 0.0 for x in vec.values))
-trueZerosPerSample.collect()
+trueZeros = trueZerosPerSample.collect()
+print(trueZeros)
 
 # 4. Project out features 0 and 2
 project = rows.mapValues(lambda vec: Vectors.dense(vec[0], vec[2]))
-project.collect()
+p = project.collect()
+print(p)
 
 # 5. Find the first two principal components
 # See https://spark.apache.org/docs/latest/mllib-dimensionality-reduction.html#principal-component-analysis-pca
@@ -68,4 +80,8 @@ mat = RowMatrix(rows.values()) # drop sample IDs to do PCA
 pc = mat.computePrincipalComponents(2)
 projected = mat.multiply(pc)
 projectedWithSampleIds = rows.keys().zip(projected.rows) # add back sample IDs; note can only call zip because projected has same partitioning and #rows per partition
-projectedWithSampleIds.collect()
+pca = projectedWithSampleIds.collect()
+print(pca)
+
+# Clean up the data with
+# hadoop fs -rm -r celldb

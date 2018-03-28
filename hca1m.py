@@ -21,19 +21,22 @@ rows.cache()
 # Now let's do some simple queries
 
 # 0. Find out how many rows there are
-rows.count()
+c = rows.count()
+print(c)
 
 # 1. Find the number of measurements per sample
 numMeasurementsPerSample = rows.mapValues(lambda vec : len(vec.values))
 numMeasurementsPerSample.take(5)
 
 # 2. Calculate the sparsity of the whole dataset (7%)
-numMeasurementsPerSample.values().mean() / numFeatures
+meas = numMeasurementsPerSample.values().mean() / numFeatures
+print(meas)
 
 # 3. Find the number of true zeros (not NA) per sample (0)
 trueZerosPerSample = rows.mapValues(lambda vec : sum(x == 0.0 for x in vec.values))
 trueZerosPerSample.values().mean()
-trueZerosPerSample.values().sum()
+trueZeros = trueZerosPerSample.values().sum()
+print(trueZeros)
 
 # 5. Find the first two principal components
 mat = RowMatrix(rows.values()) # drop sample IDs to do PCA
@@ -45,15 +48,16 @@ mat = RowMatrix(rows.values()) # drop sample IDs to do PCA
 # pc = mat.computePrincipalComponents(2)
 
 # center
-rowsn = rows.sample(False, 0.001) # downsample to ~1K rows so centering is OK
-means = rowsn.values().reduce(lambda a, b: Vectors.dense(a.toArray()) + Vectors.dense(b.toArray())) / rowsn.count()
-centeredRows = rowsn.values().map(lambda r: r - means)
-centeredRows.cache()
-print centeredRows.count() # TODO: very slow, no progress after 15 min (something to do with the map?)
-centeredMat = RowMatrix(centeredRows)
+# Don't center for the moment, since it is very memory intensive
+#rowsn = rows.sample(False, 0.001) # downsample to ~1K rows so centering is OK
+#means = rowsn.values().reduce(lambda a, b: Vectors.dense(a.toArray()) + Vectors.dense(b.toArray())) / rowsn.count()
+#centeredRows = rowsn.values().map(lambda r: r - means)
+#centeredRows.cache()
+#print centeredRows.count() # TODO: very slow, no progress after 15 min (something to do with the map?)
+#mat = RowMatrix(centeredRows)
 
 # then run SVD
-svd = centeredMat.computeSVD(2, True)
+svd = mat.computeSVD(2, True)
 
 u = svd.U.rows.collect()
 
