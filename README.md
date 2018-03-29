@@ -2,6 +2,8 @@
 
 This repo contains some experiments on Single Cell data from 10x Genomics using Apache Spark.
 
+TLDR: look at these notebook session images for [toy data](https://raw.githubusercontent.com/tomwhite/single-cell-spark-demo/master/sc.png), [1m data](https://raw.githubusercontent.com/tomwhite/single-cell-spark-demo/master/sc1m.png).
+
 ### Data Model
 
 Before downloading a large dataset, it's worth looking at the sparse data model used. This is demonstrated in `sc.py`, which uses a few rows of toy data as a demonstration.
