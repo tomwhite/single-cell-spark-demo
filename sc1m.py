@@ -72,6 +72,38 @@ mat = RowMatrix(rows.values()) # drop sample IDs to do PCA
 #print centeredRows.count() # TODO: very slow, no progress after 15 min (something to do with the map?)
 #mat = RowMatrix(centeredRows)
 
+# downsample to find scalability and timing
+# 0.0005
+# 0.001   -   1K
+# 0.002
+# 0.005
+# 0.01    -  10K
+# 0.02
+# 0.05
+# 0.1     - 100K
+# 0.2
+# 0.5
+# 1       -   1M
+
+# for frac in (0.05, 0.1):
+#     print frac
+#
+#     import time
+#     t0 = time.time()
+#
+#     # center
+#     rowsn = rows.sample(False, frac) # downsample so centering is OK
+#     means = rowsn.values().reduce(lambda a, b: Vectors.dense(a.toArray()) + Vectors.dense(b.toArray())) / rowsn.count()
+#     centeredRows = rowsn.values().map(lambda r: r - means)
+#     centeredRows.cache()
+#     mat = RowMatrix(centeredRows)
+#
+#     # then run SVD
+#     svd = mat.computeSVD(2, False) # don't need U
+#
+#     t1 = time.time()
+#     print(frac, t1 - t0)
+
 # then run SVD
 svd = mat.computeSVD(2, True)
 
